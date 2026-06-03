@@ -1,0 +1,39 @@
+:root {
+  --color-dark-brown: #4C3A2F;
+  --color-gold: #EED7BD;
+  --color-dark: #1F1F1F;
+  --color-beige: #DFC9B1;
+  --color-light-gray: #E8EAED;
+  --color-cream: #FAF7F2;
+  --color-white: #FFFFFF;
+
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-cream);
+  color: var(--color-dark);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+::selection {
+  background-color: var(--color-beige);
+  color: var(--color-dark-brown);
+}
+
+input, select, button {
+  font-family: inherit;
+}

@@ -1,0 +1,558 @@
+---
+import { foods, grupos } from '../data/foods';
+
+const foodsByGroup: Record<string, typeof foods> = {};
+for (const grupo of grupos) {
+  foodsByGroup[grupo] = foods.filter(f => f.grupo === grupo);
+}
+---
+
+<section class="calculator" id="calculadora">
+  <div class="calculator-container">
+    <h2 class="section-title">Tu alimento del menú</h2>
+
+    <div class="card input-card">
+      <div class="form-group">
+        <label>Filtrar por grupo</label>
+        <div class="filter-buttons" id="filter-buttons">
+          <button class="filter-btn active" data-filter="all">Todos</button>
+          {grupos.map(grupo => (
+            <button class="filter-btn" data-filter={grupo}>{grupo}</button>
+          ))}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="food-select">Alimento de tu menú</label>
+        <select id="food-select">
+          <option value="">Selecciona un alimento...</option>
+          {grupos.map(grupo => (
+            <optgroup label={grupo}>
+              {foodsByGroup[grupo].map(food => (
+                <option value={food.alimento} data-group={food.grupo} data-base={food.cantidadBase} data-unit={food.unidad}>
+                  {food.alimento}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="quantity-input">Cantidad de tu menú</label>
+          <div class="input-with-unit">
+            <input type="number" id="quantity-input" placeholder="0" min="0" step="any" />
+            <span class="unit-label" id="unit-label">g</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Grupo</label>
+          <div class="group-badge" id="group-badge">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+      </svg>
+    </div>
+
+    <h2 class="section-title">Opciones de intercambio</h2>
+
+    <div class="card output-card">
+      <div class="exchange-section" id="exchange-section-simple">
+        <div class="form-group">
+          <label for="exchange-select">Intercambiar por</label>
+          <select id="exchange-select" disabled>
+            <option value="">Selecciona un alimento primero...</option>
+          </select>
+        </div>
+
+        <div class="result" id="result-simple" style="display: none;">
+          <div class="result-label">Cantidad que puedes comer</div>
+          <div class="result-value" id="result-value">—</div>
+          <div class="result-unit" id="result-unit"></div>
+        </div>
+      </div>
+
+      <div class="exchange-section mixed-section" id="exchange-section-mixed" style="display: none;">
+        <p class="mixed-info" id="mixed-info"></p>
+
+        <div class="form-group">
+          <label id="exchange-label-1">Opción 1 (Proteína - ½ ración)</label>
+          <select id="exchange-select-1" disabled>
+            <option value="">Selecciona...</option>
+          </select>
+        </div>
+
+        <div class="result" id="result-mixed-1" style="display: none;">
+          <div class="result-label" id="result-label-1">Cantidad</div>
+          <div class="result-value" id="result-value-1">—</div>
+          <div class="result-unit" id="result-unit-1"></div>
+        </div>
+
+        <div class="form-group">
+          <label id="exchange-label-2">Opción 2 (Hidratos - ½ ración)</label>
+          <select id="exchange-select-2" disabled>
+            <option value="">Selecciona...</option>
+          </select>
+        </div>
+
+        <div class="result" id="result-mixed-2" style="display: none;">
+          <div class="result-label" id="result-label-2">Cantidad</div>
+          <div class="result-value" id="result-value-2">—</div>
+          <div class="result-unit" id="result-unit-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script define:vars={{ foodsData: foods, gruposData: grupos }}>
+  const foodSelect = document.getElementById('food-select');
+  const quantityInput = document.getElementById('quantity-input');
+  const unitLabel = document.getElementById('unit-label');
+  const groupBadge = document.getElementById('group-badge');
+  const exchangeSelect = document.getElementById('exchange-select');
+  const resultSimple = document.getElementById('result-simple');
+  const resultValue = document.getElementById('result-value');
+  const resultUnit = document.getElementById('result-unit');
+
+  const sectionSimple = document.getElementById('exchange-section-simple');
+  const sectionMixed = document.getElementById('exchange-section-mixed');
+  const mixedInfo = document.getElementById('mixed-info');
+  const exchangeLabel1 = document.getElementById('exchange-label-1');
+  const exchangeLabel2 = document.getElementById('exchange-label-2');
+  const exchangeSelect1 = document.getElementById('exchange-select-1');
+  const exchangeSelect2 = document.getElementById('exchange-select-2');
+  const resultMixed1 = document.getElementById('result-mixed-1');
+  const resultMixed2 = document.getElementById('result-mixed-2');
+  const resultValue1 = document.getElementById('result-value-1');
+  const resultValue2 = document.getElementById('result-value-2');
+  const resultUnit1 = document.getElementById('result-unit-1');
+  const resultUnit2 = document.getElementById('result-unit-2');
+  const filterButtons = document.querySelectorAll('.filter-btn');
+
+  const foods = foodsData;
+  const allGrupos = gruposData;
+
+  function filterFoodSelect(activeFilter) {
+    foodSelect.value = '';
+    foodSelect.dispatchEvent(new Event('change'));
+
+    let html = '<option value="">Selecciona un alimento...</option>';
+
+    if (activeFilter === 'all') {
+      for (const grupo of allGrupos) {
+        const groupFoods = foods.filter(f => f.grupo === grupo);
+        html += `<optgroup label="${grupo}">`;
+        for (const food of groupFoods) {
+          html += `<option value="${food.alimento}" data-group="${food.grupo}" data-base="${food.cantidadBase}" data-unit="${food.unidad}">${food.alimento}</option>`;
+        }
+        html += '</optgroup>';
+      }
+    } else {
+      const groupFoods = foods.filter(f => f.grupo === activeFilter);
+      for (const food of groupFoods) {
+        html += `<option value="${food.alimento}" data-group="${food.grupo}" data-base="${food.cantidadBase}" data-unit="${food.unidad}">${food.alimento}</option>`;
+      }
+    }
+
+    foodSelect.innerHTML = html;
+  }
+
+  filterButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterFoodSelect(btn.dataset.filter);
+    });
+  });
+
+  function getSelectedFood() {
+    const name = foodSelect.value;
+    return foods.find(f => f.alimento === name) || null;
+  }
+
+  function getMixedGroups(grupo) {
+    if (grupo === 'Mixto (P+H)') return ['Proteína', 'Hidratos'];
+    if (grupo === 'Mixto (P+G)') return ['Proteína', 'Grasas'];
+    return [];
+  }
+
+  function populateExchangeOptions(grupo) {
+    const options = foods.filter(f => f.grupo === grupo);
+    let html = '<option value="">Selecciona un intercambio...</option>';
+    for (const food of options) {
+      html += `<option value="${food.alimento}" data-base="${food.cantidadBase}" data-unit="${food.unidad}">${food.alimento}</option>`;
+    }
+    return html;
+  }
+
+  function populateGroupOptions(grupo) {
+    const options = foods.filter(f => f.grupo === grupo);
+    let html = '<option value="">Selecciona...</option>';
+    for (const food of options) {
+      html += `<option value="${food.alimento}" data-base="${food.cantidadBase}" data-unit="${food.unidad}">${food.alimento}</option>`;
+    }
+    return html;
+  }
+
+  function calculateAndDisplay() {
+    const selectedFood = getSelectedFood();
+    const quantity = parseFloat(quantityInput.value);
+
+    if (!selectedFood || !quantity || quantity <= 0) return;
+
+    if (selectedFood.grupo.startsWith('Mixto')) {
+      calculateMixed(selectedFood, quantity);
+    } else {
+      calculateSimple(selectedFood, quantity);
+    }
+  }
+
+  function calculateSimple(selectedFood, quantity) {
+    const exchangeName = exchangeSelect.value;
+    if (!exchangeName) {
+      resultSimple.style.display = 'none';
+      return;
+    }
+
+    const exchangeFood = foods.find(f => f.alimento === exchangeName);
+    if (!exchangeFood) return;
+
+    const ratio = quantity / selectedFood.cantidadBase;
+    const result = Math.round(ratio * exchangeFood.cantidadBase * 10) / 10;
+
+    resultValue.textContent = result;
+    resultUnit.textContent = exchangeFood.unidad;
+    resultSimple.style.display = 'flex';
+  }
+
+  function calculateMixed(selectedFood, quantity) {
+    const exchange1Name = exchangeSelect1.value;
+    const exchange2Name = exchangeSelect2.value;
+    const ratio = quantity / selectedFood.cantidadBase;
+
+    if (exchange1Name) {
+      const food1 = foods.find(f => f.alimento === exchange1Name);
+      if (food1) {
+        const result1 = Math.round(ratio * food1.cantidadBase * 0.5 * 10) / 10;
+        resultValue1.textContent = result1;
+        resultUnit1.textContent = food1.unidad;
+        resultMixed1.style.display = 'flex';
+      }
+    } else {
+      resultMixed1.style.display = 'none';
+    }
+
+    if (exchange2Name) {
+      const food2 = foods.find(f => f.alimento === exchange2Name);
+      if (food2) {
+        const result2 = Math.round(ratio * food2.cantidadBase * 0.5 * 10) / 10;
+        resultValue2.textContent = result2;
+        resultUnit2.textContent = food2.unidad;
+        resultMixed2.style.display = 'flex';
+      }
+    } else {
+      resultMixed2.style.display = 'none';
+    }
+  }
+
+  foodSelect.addEventListener('change', () => {
+    const selectedFood = getSelectedFood();
+
+    if (!selectedFood) {
+      unitLabel.textContent = 'g';
+      groupBadge.textContent = '—';
+      groupBadge.className = 'group-badge';
+      exchangeSelect.disabled = true;
+      exchangeSelect.innerHTML = '<option value="">Selecciona un alimento primero...</option>';
+      sectionSimple.style.display = 'block';
+      sectionMixed.style.display = 'none';
+      resultSimple.style.display = 'none';
+      return;
+    }
+
+    unitLabel.textContent = selectedFood.unidad;
+    groupBadge.textContent = selectedFood.grupo;
+    groupBadge.className = 'group-badge badge-' + selectedFood.grupo.toLowerCase().replace(/[^a-z]/g, '');
+
+    if (selectedFood.grupo.startsWith('Mixto')) {
+      sectionSimple.style.display = 'none';
+      sectionMixed.style.display = 'block';
+
+      const [group1, group2] = getMixedGroups(selectedFood.grupo);
+      mixedInfo.textContent = `Este alimento es mixto. Puedes intercambiar por ½ ración de ${group1} + ½ ración de ${group2}.`;
+      exchangeLabel1.textContent = `${group1} (½ ración)`;
+      exchangeLabel2.textContent = `${group2} (½ ración)`;
+
+      exchangeSelect1.innerHTML = populateGroupOptions(group1);
+      exchangeSelect2.innerHTML = populateGroupOptions(group2);
+      exchangeSelect1.disabled = false;
+      exchangeSelect2.disabled = false;
+      resultMixed1.style.display = 'none';
+      resultMixed2.style.display = 'none';
+    } else {
+      sectionSimple.style.display = 'block';
+      sectionMixed.style.display = 'none';
+
+      exchangeSelect.innerHTML = populateExchangeOptions(selectedFood.grupo);
+      exchangeSelect.disabled = false;
+      resultSimple.style.display = 'none';
+    }
+  });
+
+  quantityInput.addEventListener('input', calculateAndDisplay);
+  exchangeSelect.addEventListener('change', calculateAndDisplay);
+  exchangeSelect1.addEventListener('change', calculateAndDisplay);
+  exchangeSelect2.addEventListener('change', calculateAndDisplay);
+</script>
+
+<style>
+  .calculator {
+    padding: 2rem 1.5rem 4rem;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .calculator-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .filter-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--color-beige);
+    border-radius: 20px;
+    background: var(--color-white);
+    color: var(--color-dark-brown);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .filter-btn:hover {
+    background: var(--color-light-gray);
+  }
+
+  .filter-btn.active {
+    background: var(--color-dark-brown);
+    color: var(--color-gold);
+    border-color: var(--color-dark-brown);
+  }
+
+  .section-title {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--color-dark-brown);
+  }
+
+  .card {
+    background: var(--color-white);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(76, 58, 47, 0.06);
+    border: 1px solid rgba(223, 201, 177, 0.3);
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-group:last-child {
+    margin-bottom: 0;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-dark-brown);
+    opacity: 0.7;
+  }
+
+  select {
+    appearance: none;
+    background: var(--color-light-gray);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 0.75rem 2.5rem 0.75rem 1rem;
+    font-size: 0.9rem;
+    color: var(--color-dark);
+    cursor: pointer;
+    transition: border-color 0.2s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234C3A2F' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+  }
+
+  select:focus {
+    outline: none;
+    border-color: var(--color-beige);
+  }
+
+  select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .input-with-unit {
+    display: flex;
+    align-items: center;
+    background: var(--color-light-gray);
+    border-radius: 8px;
+    border: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+
+  .input-with-unit:focus-within {
+    border-color: var(--color-beige);
+  }
+
+  input[type="number"] {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 0.75rem 0.5rem 0.75rem 1rem;
+    font-size: 0.9rem;
+    color: var(--color-dark);
+    min-width: 0;
+  }
+
+  input[type="number"]:focus {
+    outline: none;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+  }
+
+  .unit-label {
+    padding: 0.75rem 1rem 0.75rem 0.25rem;
+    font-size: 0.85rem;
+    color: var(--color-dark-brown);
+    opacity: 0.6;
+    font-weight: 500;
+  }
+
+  .group-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: var(--color-light-gray);
+    color: var(--color-dark-brown);
+  }
+
+  .badge-hidratos {
+    background: #E8F0E4;
+    color: #3D5A3A;
+  }
+
+  .badge-protena {
+    background: #FCE8E8;
+    color: #7A3030;
+  }
+
+  .badge-grasas {
+    background: #FFF3E0;
+    color: #7A5020;
+  }
+
+  .badge-mixtoph {
+    background: #E8E0F8;
+    color: #4A3070;
+  }
+
+  .badge-mixtopg {
+    background: #E0EFF8;
+    color: #2A4A6A;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    color: var(--color-beige);
+  }
+
+  .mixed-info {
+    font-size: 0.85rem;
+    color: var(--color-dark-brown);
+    opacity: 0.7;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: var(--color-light-gray);
+    border-radius: 8px;
+    line-height: 1.5;
+  }
+
+  .result {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--color-dark-brown);
+    border-radius: 8px;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .result-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-gold);
+    opacity: 0.7;
+  }
+
+  .result-value {
+    font-family: var(--font-serif);
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--color-gold);
+  }
+
+  .result-unit {
+    font-size: 0.9rem;
+    color: var(--color-gold);
+    opacity: 0.7;
+  }
+
+  @media (max-width: 480px) {
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+
+    .calculator {
+      padding: 1.5rem 1rem 3rem;
+    }
+  }
+</style>
