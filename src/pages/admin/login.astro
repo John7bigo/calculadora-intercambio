@@ -1,0 +1,194 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Admin - Login | Minimalista">
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <span class="logo-b">B</span>
+        <span class="logo-text">MINIMALISTA</span>
+      </div>
+      <h1>Acceso Administrador</h1>
+      <p class="login-desc">Ingresa tu PIN de acceso</p>
+
+      <form id="login-form">
+        <div class="pin-inputs">
+          <input type="password" maxlength="1" class="pin-digit" data-index="0" inputmode="numeric" pattern="[0-9]" />
+          <input type="password" maxlength="1" class="pin-digit" data-index="1" inputmode="numeric" pattern="[0-9]" />
+          <input type="password" maxlength="1" class="pin-digit" data-index="2" inputmode="numeric" pattern="[0-9]" />
+          <input type="password" maxlength="1" class="pin-digit" data-index="3" inputmode="numeric" pattern="[0-9]" />
+          <input type="password" maxlength="1" class="pin-digit" data-index="4" inputmode="numeric" pattern="[0-9]" />
+          <input type="password" maxlength="1" class="pin-digit" data-index="5" inputmode="numeric" pattern="[0-9]" />
+        </div>
+        <p class="error-msg" id="error-msg"></p>
+        <button type="submit" class="login-btn">Acceder</button>
+      </form>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  const digits = document.querySelectorAll<HTMLInputElement>('.pin-digit');
+  const form = document.getElementById('login-form') as HTMLFormElement;
+  const errorMsg = document.getElementById('error-msg')!;
+
+  digits.forEach((input, i) => {
+    input.addEventListener('input', () => {
+      if (input.value && i < digits.length - 1) {
+        digits[i + 1].focus();
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && i > 0) {
+        digits[i - 1].focus();
+      }
+    });
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const paste = e.clipboardData?.getData('text') || '';
+      const chars = paste.replace(/\D/g, '').slice(0, 6);
+      chars.split('').forEach((char, idx) => {
+        if (digits[idx]) digits[idx].value = char;
+      });
+      const focusIdx = Math.min(chars.length, digits.length - 1);
+      digits[focusIdx].focus();
+    });
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorMsg.textContent = '';
+
+    const pin = Array.from(digits).map(d => d.value).join('');
+    if (pin.length < 6) {
+      errorMsg.textContent = 'Ingresa los 6 dígitos';
+      return;
+    }
+
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    });
+
+    if (res.ok) {
+      window.location.href = '/admin';
+    } else {
+      errorMsg.textContent = 'PIN incorrecto';
+      digits.forEach(d => d.value = '');
+      digits[0].focus();
+    }
+  });
+
+  digits[0].focus();
+</script>
+
+<style>
+  .login-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  .login-card {
+    background: var(--color-white);
+    border-radius: 16px;
+    padding: 3rem 2.5rem;
+    box-shadow: 0 4px 24px rgba(76, 58, 47, 0.08);
+    border: 1px solid rgba(223, 201, 177, 0.3);
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+  }
+
+  .login-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  .logo-b {
+    font-family: var(--font-serif);
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--color-dark-brown);
+    line-height: 1;
+  }
+
+  .logo-text {
+    font-size: 0.6rem;
+    letter-spacing: 0.25em;
+    color: var(--color-dark-brown);
+    font-weight: 500;
+    margin-top: 0.25rem;
+  }
+
+  h1 {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--color-dark-brown);
+    margin-bottom: 0.5rem;
+  }
+
+  .login-desc {
+    font-size: 0.9rem;
+    color: var(--color-dark-brown);
+    opacity: 0.6;
+    margin-bottom: 2rem;
+  }
+
+  .pin-inputs {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+  }
+
+  .pin-digit {
+    width: 44px;
+    height: 52px;
+    border: 1px solid var(--color-beige);
+    border-radius: 8px;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-dark-brown);
+    background: var(--color-light-gray);
+    transition: border-color 0.2s;
+  }
+
+  .pin-digit:focus {
+    outline: none;
+    border-color: var(--color-dark-brown);
+    background: var(--color-white);
+  }
+
+  .error-msg {
+    font-size: 0.85rem;
+    color: #c53030;
+    min-height: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .login-btn {
+    width: 100%;
+    padding: 0.85rem;
+    background: var(--color-dark-brown);
+    color: var(--color-gold);
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .login-btn:hover {
+    opacity: 0.9;
+  }
+</style>

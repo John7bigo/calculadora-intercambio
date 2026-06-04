@@ -1,0 +1,489 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { db } from '../../db/client';
+import { foods as foodsTable } from '../../db/schema';
+import { grupos } from '../../lib/foods';
+
+const allFoods = await db.select().from(foodsTable);
+---
+
+<Layout title="Admin - Panel | Minimalista">
+  <div class="admin-container">
+    <header class="admin-header">
+      <div class="admin-brand">
+        <span class="logo-b">B</span>
+        <h1>Panel de Administración</h1>
+      </div>
+      <button id="logout-btn" class="logout-btn">Cerrar sesión</button>
+    </header>
+
+    <section class="add-section">
+      <h2>Agregar alimento</h2>
+      <form id="add-form" class="add-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="new-grupo">Grupo</label>
+            <select id="new-grupo" required>
+              {grupos.map(g => <option value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="new-alimento">Alimento</label>
+            <input type="text" id="new-alimento" placeholder="Nombre del alimento" required />
+          </div>
+          <div class="form-group">
+            <label for="new-cantidad">Cantidad base</label>
+            <input type="number" id="new-cantidad" placeholder="0" step="any" min="0" required />
+          </div>
+          <div class="form-group">
+            <label for="new-unidad">Unidad</label>
+            <select id="new-unidad" required>
+              <option value="g">g</option>
+              <option value="ml">ml</option>
+              <option value="ud">ud</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn-add">Agregar</button>
+      </form>
+    </section>
+
+    <section class="table-section">
+      <h2>Alimentos <span class="count" id="food-count">({allFoods.length})</span></h2>
+      <div class="table-wrapper">
+        <table id="foods-table">
+          <thead>
+            <tr>
+              <th>Grupo</th>
+              <th>Alimento</th>
+              <th>Cantidad</th>
+              <th>Unidad</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="foods-tbody">
+            {allFoods.map(food => (
+              <tr data-id={food.id}>
+                <td class="col-grupo">{food.grupo}</td>
+                <td class="col-alimento">{food.alimento}</td>
+                <td class="col-cantidad">{food.cantidadBase}</td>
+                <td class="col-unidad">{food.unidad}</td>
+                <td class="col-actions">
+                  <button class="btn-edit" data-id={food.id}>Editar</button>
+                  <button class="btn-delete" data-id={food.id}>Eliminar</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <dialog id="edit-dialog">
+    <form id="edit-form">
+      <h3>Editar alimento</h3>
+      <input type="hidden" id="edit-id" />
+      <div class="dialog-fields">
+        <div class="form-group">
+          <label for="edit-grupo">Grupo</label>
+          <select id="edit-grupo" required>
+            {grupos.map(g => <option value={g}>{g}</option>)}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="edit-alimento">Alimento</label>
+          <input type="text" id="edit-alimento" required />
+        </div>
+        <div class="form-group">
+          <label for="edit-cantidad">Cantidad base</label>
+          <input type="number" id="edit-cantidad" step="any" min="0" required />
+        </div>
+        <div class="form-group">
+          <label for="edit-unidad">Unidad</label>
+          <select id="edit-unidad" required>
+            <option value="g">g</option>
+            <option value="ml">ml</option>
+            <option value="ud">ud</option>
+          </select>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="edit-cancel" class="btn-cancel">Cancelar</button>
+        <button type="submit" class="btn-save">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+</Layout>
+
+<script>
+  const logoutBtn = document.getElementById('logout-btn')!;
+  const addForm = document.getElementById('add-form') as HTMLFormElement;
+  const tbody = document.getElementById('foods-tbody')!;
+  const foodCount = document.getElementById('food-count')!;
+  const editDialog = document.getElementById('edit-dialog') as HTMLDialogElement;
+  const editForm = document.getElementById('edit-form') as HTMLFormElement;
+  const editCancel = document.getElementById('edit-cancel')!;
+
+  logoutBtn.addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/admin/login';
+  });
+
+  addForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const grupo = (document.getElementById('new-grupo') as HTMLSelectElement).value;
+    const alimento = (document.getElementById('new-alimento') as HTMLInputElement).value;
+    const cantidadBase = (document.getElementById('new-cantidad') as HTMLInputElement).value;
+    const unidad = (document.getElementById('new-unidad') as HTMLSelectElement).value;
+
+    const res = await fetch('/api/foods', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grupo, alimento, cantidadBase: Number(cantidadBase), unidad }),
+    });
+
+    if (res.ok) {
+      const food = await res.json();
+      addRowToTable(food);
+      addForm.reset();
+      updateCount(1);
+    }
+  });
+
+  function addRowToTable(food: any) {
+    const tr = document.createElement('tr');
+    tr.dataset.id = food.id;
+    tr.innerHTML = `
+      <td class="col-grupo">${food.grupo}</td>
+      <td class="col-alimento">${food.alimento}</td>
+      <td class="col-cantidad">${food.cantidadBase}</td>
+      <td class="col-unidad">${food.unidad}</td>
+      <td class="col-actions">
+        <button class="btn-edit" data-id="${food.id}">Editar</button>
+        <button class="btn-delete" data-id="${food.id}">Eliminar</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+    attachRowListeners(tr);
+  }
+
+  function updateCount(delta: number) {
+    const current = parseInt(foodCount.textContent?.replace(/[()]/g, '') || '0');
+    foodCount.textContent = `(${current + delta})`;
+  }
+
+  function attachRowListeners(tr: HTMLElement) {
+    const editBtn = tr.querySelector('.btn-edit') as HTMLButtonElement;
+    const deleteBtn = tr.querySelector('.btn-delete') as HTMLButtonElement;
+
+    editBtn?.addEventListener('click', () => {
+      const id = editBtn.dataset.id!;
+      const row = tr;
+      (document.getElementById('edit-id') as HTMLInputElement).value = id;
+      (document.getElementById('edit-grupo') as HTMLSelectElement).value = row.querySelector('.col-grupo')!.textContent!;
+      (document.getElementById('edit-alimento') as HTMLInputElement).value = row.querySelector('.col-alimento')!.textContent!;
+      (document.getElementById('edit-cantidad') as HTMLInputElement).value = row.querySelector('.col-cantidad')!.textContent!;
+      (document.getElementById('edit-unidad') as HTMLSelectElement).value = row.querySelector('.col-unidad')!.textContent!;
+      editDialog.showModal();
+    });
+
+    deleteBtn?.addEventListener('click', async () => {
+      const id = deleteBtn.dataset.id!;
+      if (!confirm('¿Eliminar este alimento?')) return;
+
+      const res = await fetch(`/api/foods/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        tr.remove();
+        updateCount(-1);
+      }
+    });
+  }
+
+  tbody.querySelectorAll('tr').forEach(tr => attachRowListeners(tr));
+
+  editCancel.addEventListener('click', () => editDialog.close());
+
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = (document.getElementById('edit-id') as HTMLInputElement).value;
+    const grupo = (document.getElementById('edit-grupo') as HTMLSelectElement).value;
+    const alimento = (document.getElementById('edit-alimento') as HTMLInputElement).value;
+    const cantidadBase = (document.getElementById('edit-cantidad') as HTMLInputElement).value;
+    const unidad = (document.getElementById('edit-unidad') as HTMLSelectElement).value;
+
+    const res = await fetch(`/api/foods/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grupo, alimento, cantidadBase: Number(cantidadBase), unidad }),
+    });
+
+    if (res.ok) {
+      const food = await res.json();
+      const row = tbody.querySelector(`tr[data-id="${id}"]`)!;
+      row.querySelector('.col-grupo')!.textContent = food.grupo;
+      row.querySelector('.col-alimento')!.textContent = food.alimento;
+      row.querySelector('.col-cantidad')!.textContent = food.cantidadBase;
+      row.querySelector('.col-unidad')!.textContent = food.unidad;
+      editDialog.close();
+    }
+  });
+</script>
+
+<style>
+  .admin-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  .admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-beige);
+  }
+
+  .admin-brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .admin-brand .logo-b {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-dark-brown);
+  }
+
+  .admin-brand h1 {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--color-dark-brown);
+  }
+
+  .logout-btn {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid var(--color-beige);
+    border-radius: 6px;
+    color: var(--color-dark-brown);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .logout-btn:hover {
+    background: var(--color-light-gray);
+  }
+
+  .add-section {
+    background: var(--color-white);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(76, 58, 47, 0.06);
+    border: 1px solid rgba(223, 201, 177, 0.3);
+  }
+
+  .add-section h2,
+  .table-section h2 {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--color-dark-brown);
+    margin-bottom: 1rem;
+  }
+
+  .count {
+    font-size: 0.85rem;
+    opacity: 0.6;
+    font-weight: 400;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr 0.7fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-dark-brown);
+    opacity: 0.7;
+  }
+
+  select, input[type="text"], input[type="number"] {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-beige);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--color-dark);
+    background: var(--color-light-gray);
+  }
+
+  select:focus, input:focus {
+    outline: none;
+    border-color: var(--color-dark-brown);
+  }
+
+  .btn-add {
+    padding: 0.6rem 1.5rem;
+    background: var(--color-dark-brown);
+    color: var(--color-gold);
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .btn-add:hover {
+    opacity: 0.9;
+  }
+
+  .table-section {
+    background: var(--color-white);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(76, 58, 47, 0.06);
+    border: 1px solid rgba(223, 201, 177, 0.3);
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  th {
+    text-align: left;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 2px solid var(--color-beige);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-dark-brown);
+    opacity: 0.7;
+  }
+
+  td {
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    color: var(--color-dark);
+  }
+
+  tr:hover td {
+    background: var(--color-light-gray);
+  }
+
+  .col-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-edit, .btn-delete {
+    padding: 0.3rem 0.6rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .btn-edit {
+    background: var(--color-beige);
+    color: var(--color-dark-brown);
+  }
+
+  .btn-delete {
+    background: #fce8e8;
+    color: #7a3030;
+  }
+
+  .btn-edit:hover { opacity: 0.8; }
+  .btn-delete:hover { opacity: 0.8; }
+
+  dialog {
+    border: none;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    max-width: 450px;
+    width: 90%;
+  }
+
+  dialog::backdrop {
+    background: rgba(31, 31, 31, 0.5);
+  }
+
+  dialog h3 {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    color: var(--color-dark-brown);
+    margin-bottom: 1.5rem;
+  }
+
+  .dialog-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  .btn-cancel {
+    padding: 0.6rem 1rem;
+    background: var(--color-light-gray);
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--color-dark-brown);
+  }
+
+  .btn-save {
+    padding: 0.6rem 1.5rem;
+    background: var(--color-dark-brown);
+    color: var(--color-gold);
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  @media (max-width: 640px) {
+    .form-row {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-header {
+      flex-direction: column;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+  }
+</style>

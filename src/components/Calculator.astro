@@ -1,7 +1,14 @@
 ---
-import { foods, grupos } from '../data/foods';
+import { grupos } from '../lib/foods';
+import type { Food } from '../db/schema';
 
-const foodsByGroup: Record<string, typeof foods> = {};
+interface Props {
+  foods: Food[];
+}
+
+const { foods } = Astro.props;
+
+const foodsByGroup: Record<string, Food[]> = {};
 for (const grupo of grupos) {
   foodsByGroup[grupo] = foods.filter(f => f.grupo === grupo);
 }
