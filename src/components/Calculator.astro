@@ -30,19 +30,12 @@ for (const grupo of grupos) {
       </div>
 
       <div class="form-group">
-        <label for="food-select">Alimento de tu menú</label>
-        <select id="food-select">
-          <option value="">Selecciona un alimento...</option>
-          {grupos.map(grupo => (
-            <optgroup label={grupo}>
-              {foodsByGroup[grupo].map(food => (
-                <option value={food.alimento} data-group={food.grupo} data-base={food.cantidadBase} data-unit={food.unidad}>
-                  {food.alimento}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <label>Alimento de tu menú</label>
+        <div class="searchable-select" id="food-wrapper">
+          <input type="text" class="search-input" id="food-search" placeholder="Buscar alimento..." />
+          <button type="button" class="search-clear" id="food-clear" style="display:none;">&times;</button>
+          <ul class="search-options" id="food-options"></ul>
+        </div>
       </div>
 
       <div class="form-row">
@@ -72,10 +65,12 @@ for (const grupo of grupos) {
     <div class="card output-card">
       <div class="exchange-section" id="exchange-section-simple">
         <div class="form-group">
-          <label for="exchange-select">Intercambiar por</label>
-          <select id="exchange-select" disabled>
-            <option value="">Selecciona un alimento primero...</option>
-          </select>
+          <label>Intercambiar por</label>
+          <div class="searchable-select" id="exchange-wrapper">
+            <input type="text" class="search-input" id="exchange-search" placeholder="Selecciona un alimento primero..." disabled />
+            <button type="button" class="search-clear" id="exchange-clear" style="display:none;">&times;</button>
+            <ul class="search-options" id="exchange-options"></ul>
+          </div>
         </div>
 
         <div class="result" id="result-simple" style="display: none;">
@@ -90,9 +85,11 @@ for (const grupo of grupos) {
 
         <div class="form-group">
           <label id="exchange-label-1">Opción 1 (Proteína - ½ ración)</label>
-          <select id="exchange-select-1" disabled>
-            <option value="">Selecciona...</option>
-          </select>
+          <div class="searchable-select" id="mixed1-wrapper">
+            <input type="text" class="search-input" id="mixed1-search" placeholder="Selecciona..." disabled />
+            <button type="button" class="search-clear" id="mixed1-clear" style="display:none;">&times;</button>
+            <ul class="search-options" id="mixed1-options"></ul>
+          </div>
         </div>
 
         <div class="result" id="result-mixed-1" style="display: none;">
@@ -103,9 +100,11 @@ for (const grupo of grupos) {
 
         <div class="form-group">
           <label id="exchange-label-2">Opción 2 (Hidratos - ½ ración)</label>
-          <select id="exchange-select-2" disabled>
-            <option value="">Selecciona...</option>
-          </select>
+          <div class="searchable-select" id="mixed2-wrapper">
+            <input type="text" class="search-input" id="mixed2-search" placeholder="Selecciona..." disabled />
+            <button type="button" class="search-clear" id="mixed2-clear" style="display:none;">&times;</button>
+            <ul class="search-options" id="mixed2-options"></ul>
+          </div>
         </div>
 
         <div class="result" id="result-mixed-2" style="display: none;">
@@ -118,12 +117,10 @@ for (const grupo of grupos) {
   </div>
 </section>
 
-<script define:vars={{ foodsData: foods, gruposData: grupos }}>
-  const foodSelect = document.getElementById('food-select');
+<script define:vars={{ foodsData: foods }}>
   const quantityInput = document.getElementById('quantity-input');
   const unitLabel = document.getElementById('unit-label');
   const groupBadge = document.getElementById('group-badge');
-  const exchangeSelect = document.getElementById('exchange-select');
   const resultSimple = document.getElementById('result-simple');
   const resultValue = document.getElementById('result-value');
   const resultUnit = document.getElementById('result-unit');
@@ -133,8 +130,6 @@ for (const grupo of grupos) {
   const mixedInfo = document.getElementById('mixed-info');
   const exchangeLabel1 = document.getElementById('exchange-label-1');
   const exchangeLabel2 = document.getElementById('exchange-label-2');
-  const exchangeSelect1 = document.getElementById('exchange-select-1');
-  const exchangeSelect2 = document.getElementById('exchange-select-2');
   const resultMixed1 = document.getElementById('result-mixed-1');
   const resultMixed2 = document.getElementById('result-mixed-2');
   const resultValue1 = document.getElementById('result-value-1');
@@ -144,44 +139,174 @@ for (const grupo of grupos) {
   const filterButtons = document.querySelectorAll('.filter-btn');
 
   const foods = foodsData;
-  const allGrupos = gruposData;
 
-  function filterFoodSelect(activeFilter) {
-    foodSelect.value = '';
-    foodSelect.dispatchEvent(new Event('change'));
+  // --- Searchable select component ---
+  function createSearchSelect(wrapperId, searchId, optionsId, clearId, onChange) {
+    const wrapper = document.getElementById(wrapperId);
+    const input = document.getElementById(searchId);
+    const optionsList = document.getElementById(optionsId);
+    const clearBtn = document.getElementById(clearId);
 
-    let html = '<option value="">Selecciona un alimento...</option>';
+    const state = { value: '', items: [], input, optionsList, wrapper, clearBtn, onChange };
 
-    if (activeFilter === 'all') {
-      for (const grupo of allGrupos) {
-        const groupFoods = foods.filter(f => f.grupo === grupo);
-        html += `<optgroup label="${grupo}">`;
-        for (const food of groupFoods) {
-          html += `<option value="${food.alimento}" data-group="${food.grupo}" data-base="${food.cantidadBase}" data-unit="${food.unidad}">${food.alimento}</option>`;
+    input.addEventListener('input', () => {
+      const query = input.value.toLowerCase();
+      const filtered = state.items.filter(item => item.label.toLowerCase().includes(query));
+      renderOptions(state, filtered);
+      optionsList.style.display = 'block';
+    });
+
+    input.addEventListener('focus', () => {
+      if (input.disabled) return;
+      const query = input.value.toLowerCase();
+      const filtered = state.items.filter(item => item.label.toLowerCase().includes(query));
+      renderOptions(state, filtered);
+      optionsList.style.display = 'block';
+    });
+
+    clearBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      state.value = '';
+      state.input.value = '';
+      clearBtn.style.display = 'none';
+      state.optionsList.style.display = 'none';
+      if (state.onChange) state.onChange('');
+    });
+
+    document.addEventListener('mousedown', (e) => {
+      if (!wrapper.contains(e.target)) {
+        optionsList.style.display = 'none';
+        if (state.value) {
+          input.value = state.value;
+        } else {
+          input.value = '';
         }
-        html += '</optgroup>';
       }
-    } else {
-      const groupFoods = foods.filter(f => f.grupo === activeFilter);
-      for (const food of groupFoods) {
-        html += `<option value="${food.alimento}" data-group="${food.grupo}" data-base="${food.cantidadBase}" data-unit="${food.unidad}">${food.alimento}</option>`;
-      }
-    }
+    });
 
-    foodSelect.innerHTML = html;
+    return state;
   }
 
+  function renderOptions(state, filtered) {
+    if (filtered.length === 0) {
+      state.optionsList.innerHTML = '<li class="search-option-empty">Sin resultados</li>';
+      return;
+    }
+
+    state.optionsList.innerHTML = '';
+    filtered.forEach((item) => {
+      const li = document.createElement('li');
+      li.className = 'search-option' + (item.value === state.value ? ' selected' : '');
+      li.textContent = item.label;
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        state.value = item.value;
+        state.input.value = item.label;
+        state.optionsList.style.display = 'none';
+        state.clearBtn.style.display = 'flex';
+        if (state.onChange) state.onChange(state.value);
+      });
+      state.optionsList.appendChild(li);
+    });
+  }
+
+  // --- Initialize all searchable selects ---
+  const foodSearch = createSearchSelect('food-wrapper', 'food-search', 'food-options', 'food-clear', onFoodSelected);
+  const exchangeSearch = createSearchSelect('exchange-wrapper', 'exchange-search', 'exchange-options', 'exchange-clear', () => calculateAndDisplay());
+  const mixed1Search = createSearchSelect('mixed1-wrapper', 'mixed1-search', 'mixed1-options', 'mixed1-clear', () => calculateAndDisplay());
+  const mixed2Search = createSearchSelect('mixed2-wrapper', 'mixed2-search', 'mixed2-options', 'mixed2-clear', () => calculateAndDisplay());
+
+  // Populate main food search with all items
+  let activeFilter = 'all';
+
+  function buildFoodItems(filter) {
+    if (filter === 'all') {
+      return foods.map(f => ({ value: f.alimento, label: f.alimento, grupo: f.grupo }));
+    }
+    return foods.filter(f => f.grupo === filter).map(f => ({ value: f.alimento, label: f.alimento, grupo: f.grupo }));
+  }
+
+  function refreshFoodList() {
+    foodSearch.items = buildFoodItems(activeFilter);
+    foodSearch.value = '';
+    foodSearch.input.value = '';
+    onFoodSelected('');
+  }
+
+  refreshFoodList();
+
+  // Filter buttons
   filterButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       filterButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      filterFoodSelect(btn.dataset.filter);
+      activeFilter = btn.dataset.filter;
+      refreshFoodList();
     });
   });
 
+  // --- Food selection handler ---
   function getSelectedFood() {
-    const name = foodSelect.value;
-    return foods.find(f => f.alimento === name) || null;
+    if (!foodSearch.value) return null;
+    return foods.find(f => f.alimento === foodSearch.value) || null;
+  }
+
+  function onFoodSelected(value) {
+    const selectedFood = value ? foods.find(f => f.alimento === value) : null;
+
+    if (!selectedFood) {
+      unitLabel.textContent = 'g';
+      groupBadge.textContent = '—';
+      groupBadge.className = 'group-badge';
+      exchangeSearch.input.disabled = true;
+      exchangeSearch.items = [];
+      exchangeSearch.value = '';
+      exchangeSearch.input.value = '';
+      exchangeSearch.input.placeholder = 'Selecciona un alimento primero...';
+      sectionSimple.style.display = 'block';
+      sectionMixed.style.display = 'none';
+      resultSimple.style.display = 'none';
+      return;
+    }
+
+    unitLabel.textContent = selectedFood.unidad;
+    groupBadge.textContent = selectedFood.grupo;
+    groupBadge.className = 'group-badge badge-' + selectedFood.grupo.toLowerCase().replace(/[^a-z]/g, '');
+
+    if (selectedFood.grupo.startsWith('Mixto')) {
+      sectionSimple.style.display = 'none';
+      sectionMixed.style.display = 'block';
+
+      const [group1, group2] = getMixedGroups(selectedFood.grupo);
+      mixedInfo.textContent = `Este alimento es mixto. Puedes intercambiar por ½ ración de ${group1} + ½ ración de ${group2}.`;
+      exchangeLabel1.textContent = `${group1} (½ ración)`;
+      exchangeLabel2.textContent = `${group2} (½ ración)`;
+
+      mixed1Search.items = foods.filter(f => f.grupo === group1).map(f => ({ value: f.alimento, label: f.alimento }));
+      mixed1Search.value = '';
+      mixed1Search.input.value = '';
+      mixed1Search.input.placeholder = 'Buscar alimento...';
+      mixed1Search.input.disabled = false;
+
+      mixed2Search.items = foods.filter(f => f.grupo === group2).map(f => ({ value: f.alimento, label: f.alimento }));
+      mixed2Search.value = '';
+      mixed2Search.input.value = '';
+      mixed2Search.input.placeholder = 'Buscar alimento...';
+      mixed2Search.input.disabled = false;
+
+      resultMixed1.style.display = 'none';
+      resultMixed2.style.display = 'none';
+    } else {
+      sectionSimple.style.display = 'block';
+      sectionMixed.style.display = 'none';
+
+      exchangeSearch.items = foods.filter(f => f.grupo === selectedFood.grupo).map(f => ({ value: f.alimento, label: f.alimento }));
+      exchangeSearch.value = '';
+      exchangeSearch.input.value = '';
+      exchangeSearch.input.placeholder = 'Buscar intercambio...';
+      exchangeSearch.input.disabled = false;
+      resultSimple.style.display = 'none';
+    }
   }
 
   function getMixedGroups(grupo) {
@@ -190,24 +315,7 @@ for (const grupo of grupos) {
     return [];
   }
 
-  function populateExchangeOptions(grupo) {
-    const options = foods.filter(f => f.grupo === grupo);
-    let html = '<option value="">Selecciona un intercambio...</option>';
-    for (const food of options) {
-      html += `<option value="${food.alimento}" data-base="${food.cantidadBase}" data-unit="${food.unidad}">${food.alimento}</option>`;
-    }
-    return html;
-  }
-
-  function populateGroupOptions(grupo) {
-    const options = foods.filter(f => f.grupo === grupo);
-    let html = '<option value="">Selecciona...</option>';
-    for (const food of options) {
-      html += `<option value="${food.alimento}" data-base="${food.cantidadBase}" data-unit="${food.unidad}">${food.alimento}</option>`;
-    }
-    return html;
-  }
-
+  // --- Calculation ---
   function calculateAndDisplay() {
     const selectedFood = getSelectedFood();
     const quantity = parseFloat(quantityInput.value);
@@ -222,7 +330,7 @@ for (const grupo of grupos) {
   }
 
   function calculateSimple(selectedFood, quantity) {
-    const exchangeName = exchangeSelect.value;
+    const exchangeName = exchangeSearch.value;
     if (!exchangeName) {
       resultSimple.style.display = 'none';
       return;
@@ -240,8 +348,8 @@ for (const grupo of grupos) {
   }
 
   function calculateMixed(selectedFood, quantity) {
-    const exchange1Name = exchangeSelect1.value;
-    const exchange2Name = exchangeSelect2.value;
+    const exchange1Name = mixed1Search.value;
+    const exchange2Name = mixed2Search.value;
     const ratio = quantity / selectedFood.cantidadBase;
 
     if (exchange1Name) {
@@ -269,54 +377,7 @@ for (const grupo of grupos) {
     }
   }
 
-  foodSelect.addEventListener('change', () => {
-    const selectedFood = getSelectedFood();
-
-    if (!selectedFood) {
-      unitLabel.textContent = 'g';
-      groupBadge.textContent = '—';
-      groupBadge.className = 'group-badge';
-      exchangeSelect.disabled = true;
-      exchangeSelect.innerHTML = '<option value="">Selecciona un alimento primero...</option>';
-      sectionSimple.style.display = 'block';
-      sectionMixed.style.display = 'none';
-      resultSimple.style.display = 'none';
-      return;
-    }
-
-    unitLabel.textContent = selectedFood.unidad;
-    groupBadge.textContent = selectedFood.grupo;
-    groupBadge.className = 'group-badge badge-' + selectedFood.grupo.toLowerCase().replace(/[^a-z]/g, '');
-
-    if (selectedFood.grupo.startsWith('Mixto')) {
-      sectionSimple.style.display = 'none';
-      sectionMixed.style.display = 'block';
-
-      const [group1, group2] = getMixedGroups(selectedFood.grupo);
-      mixedInfo.textContent = `Este alimento es mixto. Puedes intercambiar por ½ ración de ${group1} + ½ ración de ${group2}.`;
-      exchangeLabel1.textContent = `${group1} (½ ración)`;
-      exchangeLabel2.textContent = `${group2} (½ ración)`;
-
-      exchangeSelect1.innerHTML = populateGroupOptions(group1);
-      exchangeSelect2.innerHTML = populateGroupOptions(group2);
-      exchangeSelect1.disabled = false;
-      exchangeSelect2.disabled = false;
-      resultMixed1.style.display = 'none';
-      resultMixed2.style.display = 'none';
-    } else {
-      sectionSimple.style.display = 'block';
-      sectionMixed.style.display = 'none';
-
-      exchangeSelect.innerHTML = populateExchangeOptions(selectedFood.grupo);
-      exchangeSelect.disabled = false;
-      resultSimple.style.display = 'none';
-    }
-  });
-
   quantityInput.addEventListener('input', calculateAndDisplay);
-  exchangeSelect.addEventListener('change', calculateAndDisplay);
-  exchangeSelect1.addEventListener('change', calculateAndDisplay);
-  exchangeSelect2.addEventListener('change', calculateAndDisplay);
 </script>
 
 <style>
@@ -401,29 +462,103 @@ for (const grupo of grupos) {
     opacity: 0.7;
   }
 
-  select {
-    appearance: none;
+  .searchable-select {
+    position: relative;
+  }
+
+  .search-input {
+    width: 100%;
     background: var(--color-light-gray);
     border: 1px solid transparent;
     border-radius: 8px;
     padding: 0.75rem 2.5rem 0.75rem 1rem;
     font-size: 0.9rem;
     color: var(--color-dark);
-    cursor: pointer;
     transition: border-color 0.2s;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234C3A2F' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
+    box-sizing: border-box;
   }
 
-  select:focus {
+  .search-input:focus {
     outline: none;
     border-color: var(--color-beige);
   }
 
-  select:disabled {
+  .search-input:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    background: var(--color-beige);
+    border-radius: 50%;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--color-dark-brown);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .search-clear:hover {
+    background: var(--color-dark-brown);
+    color: var(--color-white);
+  }
+
+  .search-options {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 0.5rem 0;
+    list-style: none;
+    background: var(--color-white);
+    border: 1px solid var(--color-beige);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(76, 58, 47, 0.12);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+  }
+
+  .search-option {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    color: var(--color-dark);
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid rgba(223, 201, 177, 0.2);
+  }
+
+  .search-option:last-child {
+    border-bottom: none;
+  }
+
+  .search-option:hover {
+    background: var(--color-light-gray);
+  }
+
+  .search-option.selected {
+    background: var(--color-beige);
+    font-weight: 500;
+  }
+
+  .search-option-empty {
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    color: var(--color-dark-brown);
+    opacity: 0.5;
+    font-style: italic;
   }
 
   .input-with-unit {

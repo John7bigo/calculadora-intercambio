@@ -11,7 +11,7 @@ const allFoods = await db.select().from(foodsTable);
   <div class="admin-container">
     <header class="admin-header">
       <div class="admin-brand">
-        <span class="logo-b">B</span>
+        <img src="/logo-nobg.png" alt="Minimalista" class="admin-logo" />
         <h1>Panel de Administración</h1>
       </div>
       <button id="logout-btn" class="logout-btn">Cerrar sesión</button>
@@ -49,7 +49,18 @@ const allFoods = await db.select().from(foodsTable);
     </section>
 
     <section class="table-section">
-      <h2>Alimentos <span class="count" id="food-count">({allFoods.length})</span></h2>
+      <div class="table-header">
+        <h2>Alimentos <span class="count" id="food-count">({allFoods.length})</span></h2>
+        <div class="search-bar">
+          <input type="text" id="search-input" placeholder="Buscar alimento..." />
+        </div>
+      </div>
+      <div class="filter-buttons" id="admin-filter-buttons">
+        <button class="filter-btn active" data-filter="all">Todos</button>
+        {grupos.map(grupo => (
+          <button class="filter-btn" data-filter={grupo}>{grupo}</button>
+        ))}
+      </div>
       <div class="table-wrapper">
         <table id="foods-table">
           <thead>
@@ -76,6 +87,11 @@ const allFoods = await db.select().from(foodsTable);
             ))}
           </tbody>
         </table>
+      </div>
+      <div class="pagination" id="pagination">
+        <button class="page-btn" id="page-prev" disabled>&laquo; Anterior</button>
+        <span class="page-info" id="page-info">1 / 1</span>
+        <button class="page-btn" id="page-next">Siguiente &raquo;</button>
       </div>
     </section>
   </div>
@@ -124,6 +140,73 @@ const allFoods = await db.select().from(foodsTable);
   const editDialog = document.getElementById('edit-dialog') as HTMLDialogElement;
   const editForm = document.getElementById('edit-form') as HTMLFormElement;
   const editCancel = document.getElementById('edit-cancel')!;
+  const searchInput = document.getElementById('search-input') as HTMLInputElement;
+  const pageInfo = document.getElementById('page-info')!;
+  const pagePrev = document.getElementById('page-prev') as HTMLButtonElement;
+  const pageNext = document.getElementById('page-next') as HTMLButtonElement;
+
+  const ITEMS_PER_PAGE = 20;
+  let currentPage = 1;
+  let activeGroupFilter = 'all';
+  let allRows: HTMLElement[] = Array.from(tbody.querySelectorAll('tr'));
+  let filteredRows: HTMLElement[] = [...allRows];
+  const adminFilterButtons = document.querySelectorAll('#admin-filter-buttons .filter-btn');
+
+  function applyFilter() {
+    const query = searchInput.value.toLowerCase().trim();
+    filteredRows = allRows.filter(tr => {
+      const alimento = tr.querySelector('.col-alimento')?.textContent?.toLowerCase() || '';
+      const grupo = tr.querySelector('.col-grupo')?.textContent?.toLowerCase() || '';
+      const matchesSearch = alimento.includes(query) || grupo.includes(query);
+      const matchesGroup = activeGroupFilter === 'all' || grupo === activeGroupFilter.toLowerCase();
+      return matchesSearch && matchesGroup;
+    });
+    currentPage = 1;
+    renderPage();
+  }
+
+  adminFilterButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      adminFilterButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeGroupFilter = (btn as HTMLElement).dataset.filter || 'all';
+      applyFilter();
+    });
+  });
+
+  function renderPage() {
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length / ITEMS_PER_PAGE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+
+    allRows.forEach(tr => (tr as HTMLElement).style.display = 'none');
+    filteredRows.slice(start, end).forEach(tr => (tr as HTMLElement).style.display = '');
+
+    pageInfo.textContent = `${currentPage} / ${totalPages}`;
+    pagePrev.disabled = currentPage <= 1;
+    pageNext.disabled = currentPage >= totalPages;
+  }
+
+  searchInput.addEventListener('input', applyFilter);
+
+  pagePrev.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderPage();
+    }
+  });
+
+  pageNext.addEventListener('click', () => {
+    const totalPages = Math.ceil(filteredRows.length / ITEMS_PER_PAGE);
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderPage();
+    }
+  });
+
+  renderPage();
 
   logoutBtn.addEventListener('click', async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -166,6 +249,8 @@ const allFoods = await db.select().from(foodsTable);
     `;
     tbody.appendChild(tr);
     attachRowListeners(tr);
+    allRows.push(tr);
+    applyFilter();
   }
 
   function updateCount(delta: number) {
@@ -195,7 +280,9 @@ const allFoods = await db.select().from(foodsTable);
       const res = await fetch(`/api/foods/${id}`, { method: 'DELETE' });
       if (res.ok) {
         tr.remove();
+        allRows = allRows.filter(r => r !== tr);
         updateCount(-1);
+        applyFilter();
       }
     });
   }
@@ -226,6 +313,7 @@ const allFoods = await db.select().from(foodsTable);
       row.querySelector('.col-cantidad')!.textContent = food.cantidadBase;
       row.querySelector('.col-unidad')!.textContent = food.unidad;
       editDialog.close();
+      applyFilter();
     }
   });
 </script>
@@ -252,11 +340,9 @@ const allFoods = await db.select().from(foodsTable);
     gap: 1rem;
   }
 
-  .admin-brand .logo-b {
-    font-family: var(--font-serif);
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--color-dark-brown);
+  .admin-logo {
+    height: 40px;
+    width: auto;
   }
 
   .admin-brand h1 {
@@ -362,6 +448,99 @@ const allFoods = await db.select().from(foodsTable);
     padding: 1.5rem;
     box-shadow: 0 2px 8px rgba(76, 58, 47, 0.06);
     border: 1px solid rgba(223, 201, 177, 0.3);
+  }
+
+  .filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .filter-btn {
+    padding: 0.4rem 0.85rem;
+    border: 1px solid var(--color-beige);
+    border-radius: 20px;
+    background: var(--color-white);
+    color: var(--color-dark-brown);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .filter-btn:hover {
+    background: var(--color-light-gray);
+  }
+
+  .filter-btn.active {
+    background: var(--color-dark-brown);
+    color: var(--color-gold);
+    border-color: var(--color-dark-brown);
+  }
+
+  .table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .table-header h2 {
+    margin-bottom: 0;
+  }
+
+  .search-bar input {
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--color-beige);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--color-dark);
+    background: var(--color-light-gray);
+    min-width: 200px;
+  }
+
+  .search-bar input:focus {
+    outline: none;
+    border-color: var(--color-dark-brown);
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding-top: 1rem;
+    margin-top: 1rem;
+    border-top: 1px solid var(--color-light-gray);
+  }
+
+  .page-btn {
+    padding: 0.5rem 1rem;
+    background: var(--color-light-gray);
+    border: 1px solid var(--color-beige);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--color-dark-brown);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .page-btn:hover:not(:disabled) {
+    background: var(--color-beige);
+  }
+
+  .page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .page-info {
+    font-size: 0.85rem;
+    color: var(--color-dark-brown);
+    opacity: 0.7;
   }
 
   .table-wrapper {

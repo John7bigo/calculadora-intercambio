@@ -6,8 +6,7 @@ import Layout from '../../layouts/Layout.astro';
   <div class="login-container">
     <div class="login-card">
       <div class="login-header">
-        <span class="logo-b">B</span>
-        <span class="logo-text">MINIMALISTA</span>
+        <img src="/logo-nobg.png" alt="Minimalista" class="login-logo" />
       </div>
       <h1>Acceso Administrador</h1>
       <p class="login-desc">Ingresa tu PIN de acceso</p>
@@ -106,25 +105,13 @@ import Layout from '../../layouts/Layout.astro';
 
   .login-header {
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    justify-content: center;
     margin-bottom: 2rem;
   }
 
-  .logo-b {
-    font-family: var(--font-serif);
-    font-size: 3rem;
-    font-weight: 700;
-    color: var(--color-dark-brown);
-    line-height: 1;
-  }
-
-  .logo-text {
-    font-size: 0.6rem;
-    letter-spacing: 0.25em;
-    color: var(--color-dark-brown);
-    font-weight: 500;
-    margin-top: 0.25rem;
+  .login-logo {
+    height: 80px;
+    width: auto;
   }
 
   h1 {
